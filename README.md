@@ -1,0 +1,31 @@
+# 20-20-20
+
+A tiny native macOS menu bar app for the 20-20-20 rule: every **20 minutes**, look at something **20 feet** away for **20 seconds**. Helps with dry eyes and screen-induced blink suppression.
+
+## How it works
+
+- An eye icon with a live countdown sits in your menu bar. Click it for a popover with the timer ring, pause/skip controls, and settings.
+- When the countdown hits zero, the screen gently dims into a calm overlay with a 20-second ring ("Look somewhere far away"), then fades out on its own. Press **esc** if you're mid-thought and need to skip.
+- **Idle-aware:** if you step away from the keyboard for a few minutes the countdown freezes, and a long absence refills it — no break demands right after you return from lunch.
+- **Call-aware:** when a break comes due while you're on a call (Zoom, Google Meet, Microsoft Teams — anything that holds the mic or camera open), it's *held*, not lost: the menu bar shows a camera icon with "due", and the break fires about 10 seconds after the call ends (once you're back at the keyboard). If you walk away after the call instead, that counts as your rest and the timer just restarts. Detection reads CoreAudio/CoreMediaIO device state only, so it needs no permissions and works for browser-tab calls too.
+- **Daily stats:** the popover shows today's completed breaks, manual skips (esc), and breaks held for calls, plus a 🔥 streak of consecutive days with at least one completed break. Counts reset at midnight.
+- Waking from sleep resets the timer.
+
+## Settings (in the popover)
+
+- Reminder interval (10–45 min) and break length (20–60 s)
+- Soft start/end sounds on or off
+- Hold breaks during calls on or off
+- Countdown in the menu bar on or off
+- Start at login
+
+## Build & install
+
+Requires only Xcode Command Line Tools (`xcode-select --install`), macOS 14+.
+
+```sh
+./build.sh          # builds build/20-20-20.app
+./build.sh install  # builds, copies to ~/Applications, launches
+```
+
+The app is ad-hoc signed and sandboxed to nothing unusual — no network, no permissions prompts. Quit it any time from the popover.
