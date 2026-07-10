@@ -16,6 +16,9 @@ final class Engine: ObservableObject {
 
     @Published private(set) var phase: Phase = .working
     @Published private(set) var remaining: TimeInterval = 20 * 60
+    /// Whether a call is currently detected (refreshed every few seconds),
+    /// so the UI can show that breaks will be held before one is even due.
+    @Published private(set) var inCallNow = false
 
     var workDuration: TimeInterval { TimeInterval(max(1, Settings.intervalMinutes)) * 60 }
     var breakDuration: TimeInterval { TimeInterval(max(5, Settings.breakSeconds)) }
@@ -35,11 +38,13 @@ final class Engine: ObservableObject {
     /// brief mic drop mid-call (device switch, reconnect) doesn't trigger it.
     private let callClearDebounce: TimeInterval = 10
     private var callClearSeconds: TimeInterval = 0
+    private let callCheckInterval: TimeInterval = 5
+    private var lastCallCheck = Date.distantPast
 
     func start() {
         remaining = workDuration
         lastTick = Date()
-        let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.tick() }
+        let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
 
@@ -61,13 +66,15 @@ final class Engine: ObservableObject {
         case .paused:
             break
         case .working:
+            refreshCallStatus(now)
             let idle = Self.idleSeconds()
             if idle >= workDuration {
                 remaining = workDuration
             } else if idle < idleFreezeThreshold {
                 remaining -= delta
                 if remaining <= 0 {
-                    if isCallActive?() == true {
+                    refreshCallStatus(now, force: true)
+                    if inCallNow {
                         phase = .deferred
                         remaining = 0
                         callClearSeconds = 0
@@ -78,7 +85,8 @@ final class Engine: ObservableObject {
                 }
             }
         case .deferred:
-            if isCallActive?() == true {
+            refreshCallStatus(now, force: true)
+            if inCallNow {
                 callClearSeconds = 0
             } else {
                 callClearSeconds += delta
@@ -125,6 +133,13 @@ final class Engine: ObservableObject {
         case .paused: phase = .working; lastTick = Date()
         case .onBreak: break
         }
+    }
+
+    private func refreshCallStatus(_ now: Date, force: Bool = false) {
+        guard force || now.timeIntervalSince(lastCallCheck) >= callCheckInterval else { return }
+        lastCallCheck = now
+        let active = isCallActive?() == true
+        if active != inCallNow { inCallNow = active }
     }
 
     /// Re-clamp the countdown after the interval setting shrinks.

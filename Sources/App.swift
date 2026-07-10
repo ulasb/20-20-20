@@ -12,11 +12,13 @@ struct Main {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let engine = Engine()
     let overlay = OverlayController()
     var statusItem: NSStatusItem!
     var popover: NSPopover!
+    private var lastSymbol = ""
+    private var lastTitle = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -28,11 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
 
-        let host = NSHostingController(rootView: PopoverView(engine: engine))
-        host.sizingOptions = [.preferredContentSize]
         popover = NSPopover()
         popover.behavior = .transient
-        popover.contentViewController = host
+        popover.delegate = self
 
         engine.isCallActive = { Settings.skipInCalls && MeetingDetector.inCall }
         engine.onBreakDeferred = { StatsStore.shared.recordAutoSkip() }
@@ -67,9 +67,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            let host = NSHostingController(rootView: PopoverView(engine: engine))
+            host.sizingOptions = [.preferredContentSize]
+            popover.contentViewController = host
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    // Tear the SwiftUI view down while hidden so the engine's once-a-second
+    // published updates don't keep an off-screen view hierarchy busy.
+    func popoverDidClose(_ notification: Notification) {
+        popover.contentViewController = nil
     }
 
     private func updateStatus() {
@@ -77,23 +86,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let symbol: String
         switch engine.phase {
-        case .working: symbol = "eye"
+        case .working: symbol = engine.inCallNow ? "video" : "eye"
         case .paused: symbol = "eye.slash"
         case .deferred: symbol = "video.fill"
         case .onBreak: symbol = "eye.fill"
         }
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "20-20-20")
 
+        let title: String
         switch (engine.phase, Settings.showCountdown) {
         case (.paused, _), (_, false):
-            button.title = ""
+            title = ""
         case (.deferred, _):
-            button.title = " due"
+            title = " due"
         case (.onBreak, _):
-            button.title = String(format: " :%02d", max(0, Int(engine.remaining.rounded(.up))))
+            title = String(format: " :%02d", max(0, Int(engine.remaining.rounded(.up))))
         default:
             let s = max(0, Int(engine.remaining.rounded(.up)))
-            button.title = String(format: " %d:%02d", s / 60, s % 60)
+            title = String(format: " %d:%02d", s / 60, s % 60)
+        }
+
+        if symbol != lastSymbol {
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "20-20-20")
+            lastSymbol = symbol
+        }
+        if title != lastTitle {
+            button.title = title
+            lastTitle = title
         }
     }
 

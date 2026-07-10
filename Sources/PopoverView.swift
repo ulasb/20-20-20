@@ -89,7 +89,7 @@ struct PopoverView: View {
                     style: StrokeStyle(lineWidth: 8, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.5), value: fraction)
+                .animation(.linear(duration: 1.0), value: fraction)
             VStack(spacing: 2) {
                 if engine.phase == .deferred {
                     Image(systemName: "video.fill")
@@ -116,7 +116,7 @@ struct PopoverView: View {
 
     private var caption: String {
         switch engine.phase {
-        case .working: return "until your next break"
+        case .working: return engine.inCallNow ? "on a call — break will wait" : "until your next break"
         case .paused: return "paused"
         case .deferred: return "break due after your call"
         case .onBreak: return "eyes off the screen"

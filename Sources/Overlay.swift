@@ -84,6 +84,11 @@ struct BreakView: View {
     let isPrimary: Bool
     var onSkip: () -> Void
 
+    // The ring is a single Core Animation and the seconds text updates once
+    // per second — a continuously redrawing TimelineView(.animation) over a
+    // full-screen blur costs 15-20% CPU on ProMotion displays.
+    @State private var ringFraction: Double = 1
+
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial)
@@ -96,18 +101,15 @@ struct BreakView: View {
             )
             .opacity(0.92)
 
-            if isPrimary {
-                TimelineView(.animation) { context in
-                    let elapsed = context.date.timeIntervalSince(startDate)
-                    let left = max(0, duration - elapsed)
-                    content(left: left, fraction: duration > 0 ? left / duration : 0)
-                }
-            }
+            if isPrimary { content }
         }
         .ignoresSafeArea()
+        .onAppear {
+            withAnimation(.linear(duration: duration)) { ringFraction = 0 }
+        }
     }
 
-    private func content(left: TimeInterval, fraction: Double) -> some View {
+    private var content: some View {
         VStack(spacing: 36) {
             Spacer()
 
@@ -130,16 +132,19 @@ struct BreakView: View {
                 Circle()
                     .stroke(.white.opacity(0.12), lineWidth: 6)
                 Circle()
-                    .trim(from: 0, to: fraction)
+                    .trim(from: 0, to: ringFraction)
                     .stroke(
                         .white.opacity(0.9),
                         style: StrokeStyle(lineWidth: 6, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                Text("\(Int(left.rounded(.up)))")
-                    .font(.system(size: 40, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
+                TimelineView(.periodic(from: startDate, by: 1)) { context in
+                    let left = max(0, duration - context.date.timeIntervalSince(startDate))
+                    Text("\(Int(left.rounded(.up)))")
+                        .font(.system(size: 40, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                }
             }
             .frame(width: 128, height: 128)
 
