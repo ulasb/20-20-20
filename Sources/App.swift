@@ -19,6 +19,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var popover: NSPopover!
     private var lastSymbol = ""
     private var lastTitle = ""
+    private lazy var eyeWithCameraBadge = Self.makeBadgedEye()
+
+    /// The regular eye with a small camera badged into the bottom-right
+    /// corner, punched out of the eye's outline so it stays legible. Template
+    /// image, so the menu bar tints it for light/dark appearances.
+    private static func makeBadgedEye() -> NSImage? {
+        let eyeConfig = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        let badgeConfig = NSImage.SymbolConfiguration(pointSize: 6, weight: .bold)
+        guard
+            let eye = NSImage(systemSymbolName: "eye", accessibilityDescription: "20-20-20")?
+                .withSymbolConfiguration(eyeConfig),
+            let camera = NSImage(systemSymbolName: "video.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(badgeConfig)
+        else { return nil }
+
+        let size = NSSize(width: eye.size.width + 2, height: eye.size.height + 2)
+        let image = NSImage(size: size, flipped: false) { _ in
+            eye.draw(in: NSRect(x: 0, y: 2, width: eye.size.width, height: eye.size.height))
+            let badge = NSRect(
+                x: size.width - camera.size.width, y: 0,
+                width: camera.size.width, height: camera.size.height
+            )
+            NSColor.black.setFill()
+            NSGraphicsContext.current?.compositingOperation = .destinationOut
+            NSBezierPath(roundedRect: badge.insetBy(dx: -1.2, dy: -1.2), xRadius: 2.5, yRadius: 2.5).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            camera.draw(in: badge)
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -86,9 +118,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         let symbol: String
         switch engine.phase {
-        case .working: symbol = engine.inCallNow ? "video" : "eye"
+        case .working: symbol = engine.inCallNow ? "eye+camera" : "eye"
         case .paused: symbol = "eye.slash"
-        case .deferred: symbol = "video.fill"
+        case .deferred: symbol = "eye+camera"
         case .onBreak: symbol = "eye.fill"
         }
 
@@ -106,7 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         if symbol != lastSymbol {
-            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "20-20-20")
+            button.image = symbol == "eye+camera"
+                ? eyeWithCameraBadge
+                : NSImage(systemSymbolName: symbol, accessibilityDescription: "20-20-20")
             lastSymbol = symbol
         }
         if title != lastTitle {
